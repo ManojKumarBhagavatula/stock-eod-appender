@@ -1,0 +1,6 @@
+fastapi
+uvicorn[standard]
+yfinance
+openpyxl
+jinja2
+python-multipart

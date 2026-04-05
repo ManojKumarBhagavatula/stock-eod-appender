@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Stock EOD Price Updater</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: #f4f6f9;
+      color: #1a1a1a;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem 1rem;
+    }
+
+    .container {
+      background: #ffffff;
+      border-radius: 12px;
+      border: 1px solid #dde1e7;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+      padding: 2.5rem 2rem;
+      width: 100%;
+      max-width: 520px;
+    }
+
+    /* Header */
+    .header {
+      text-align: center;
+      margin-bottom: 2rem;
+      padding-bottom: 1.5rem;
+      border-bottom: 1px solid #eef0f3;
+    }
+
+    .header .icon { font-size: 2.5rem; margin-bottom: 0.75rem; }
+
+    .header h1 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: #1a1a1a;
+      margin-bottom: 0.4rem;
+    }
+
+    .header p {
+      font-size: 0.9rem;
+      color: #555;
+      line-height: 1.5;
+    }
+
+    /* Section label */
+    .section-label {
+      font-size: 0.8rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #888;
+      margin-bottom: 0.5rem;
+    }
+
+    /* Drop zone */
+    .dropzone {
+      position: relative;
+      border: 2px dashed #c5cad4;
+      border-radius: 8px;
+      padding: 2rem 1.5rem;
+      text-align: center;
+      cursor: pointer;
+      background: #fafbfc;
+      transition: border-color 0.2s, background 0.2s;
+      margin-bottom: 1.25rem;
+    }
+
+    .dropzone:hover,
+    .dropzone.drag-over {
+      border-color: #2563eb;
+      background: #eff4ff;
+    }
+
+    .dropzone input[type="file"] {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+      width: 100%;
+      height: 100%;
+    }
+
+    .dropzone .dz-icon { font-size: 2rem; margin-bottom: 0.5rem; }
+
+    .dropzone .dz-title {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: #1a1a1a;
+      margin-bottom: 0.25rem;
+    }
+
+    .dropzone .dz-sub {
+      font-size: 0.82rem;
+      color: #888;
+    }
+
+    .file-selected {
+      display: none;
+      margin-top: 0.75rem;
+      padding: 0.5rem 0.75rem;
+      background: #eff4ff;
+      border: 1px solid #bdd0fb;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      color: #2563eb;
+      word-break: break-all;
+    }
+
+    /* Info box */
+    .info-box {
+      background: #fffbeb;
+      border: 1px solid #fde68a;
+      border-radius: 8px;
+      padding: 0.85rem 1rem;
+      font-size: 0.82rem;
+      color: #78350f;
+      line-height: 1.6;
+      margin-bottom: 1.25rem;
+    }
+
+    .info-box strong { color: #451a03; }
+
+    /* Button */
+    .btn {
+      width: 100%;
+      padding: 0.85rem;
+      background: #2563eb;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .btn:hover:not(:disabled) { background: #1d4ed8; }
+
+    .btn:disabled {
+      background: #93b4f5;
+      cursor: not-allowed;
+    }
+
+    /* Loading box */
+    .loading-box {
+      display: none;
+      margin-top: 1.25rem;
+      background: #f0f7ff;
+      border: 1px solid #bdd0fb;
+      border-radius: 8px;
+      padding: 1.25rem 1rem;
+      text-align: center;
+    }
+
+    .loading-box .spinner {
+      width: 36px;
+      height: 36px;
+      border: 4px solid #dde8fc;
+      border-top-color: #2563eb;
+      border-radius: 50%;
+      animation: spin 0.9s linear infinite;
+      margin: 0 auto 0.85rem;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .loading-box .loading-title {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: #1e3a8a;
+      margin-bottom: 0.4rem;
+    }
+
+    .loading-box .loading-msg {
+      font-size: 0.82rem;
+      color: #3b5bdb;
+      line-height: 1.6;
+    }
+
+    .loading-box .loading-note {
+      margin-top: 0.6rem;
+      font-size: 0.78rem;
+      color: #888;
+    }
+
+    /* Progress bar */
+    .progress-bar-wrap {
+      margin-top: 0.85rem;
+      background: #dde8fc;
+      border-radius: 99px;
+      height: 8px;
+      overflow: hidden;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      width: 5%;
+      background: #2563eb;
+      border-radius: 99px;
+      transition: width 0.5s ease;
+    }
+
+    /* Result box */
+    .result-box {
+      display: none;
+      margin-top: 1.25rem;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid #dde1e7;
+    }
+
+    .result-header {
+      padding: 0.75rem 1rem;
+      font-size: 0.9rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .result-box.success .result-header { background: #f0fdf4; color: #166534; border-bottom: 1px solid #bbf7d0; }
+    .result-box.error   .result-header { background: #fff1f2; color: #9f1239; border-bottom: 1px solid #fecdd3; }
+
+    .result-body {
+      padding: 0.85rem 1rem;
+      font-size: 0.83rem;
+      background: #fafafa;
+    }
+
+    .stat-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 0.3rem 0;
+      border-bottom: 1px solid #f0f0f0;
+      color: #444;
+    }
+
+    .stat-row:last-of-type { border-bottom: none; }
+    .stat-val { font-weight: 600; color: #1a1a1a; }
+    .stat-val.green  { color: #16a34a; }
+    .stat-val.yellow { color: #ca8a04; }
+
+    /* Download button */
+    .btn-download {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      margin-top: 0.85rem;
+      width: 100%;
+      padding: 0.75rem;
+      background: #16a34a;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.92rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+      text-decoration: none;
+    }
+
+    .btn-download:hover { background: #15803d; }
+
+    /* Legend */
+    .legend {
+      margin-top: 1.5rem;
+      padding-top: 1rem;
+      border-top: 1px solid #eef0f3;
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-size: 0.78rem;
+      color: #555;
+    }
+
+    .dot {
+      width: 12px; height: 12px;
+      border-radius: 3px;
+      border: 1px solid rgba(0,0,0,0.1);
+    }
+
+    .dot.green  { background: #C6EFCE; }
+    .dot.red    { background: #FFC7CE; }
+    .dot.yellow { background: #FFEB9C; }
+
+    /* Footer */
+    .footer {
+      text-align: center;
+      margin-top: 1.25rem;
+      font-size: 0.75rem;
+      color: #aaa;
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+
+  <div class="header">
+    <div class="icon">📊</div>
+    <h1>Stock EOD Price Updater</h1>
+    <p>Upload your Excel watchlist and get today's closing prices appended automatically.</p>
+  </div>
+
+  <!-- File upload -->
+  <div class="section-label">Step 1 — Upload your Excel file</div>
+  <div class="dropzone" id="dropzone">
+    <input type="file" id="fileInput" accept=".xlsx,.xlsm" />
+    <div class="dz-icon">📁</div>
+    <div class="dz-title">Click here to select your file</div>
+    <div class="dz-sub">Or drag and drop it here &nbsp;·&nbsp; .xlsx files only</div>
+    <div class="file-selected" id="fileSelected"></div>
+  </div>
+
+  <!-- Info -->
+  <div class="info-box">
+    <strong>Your Excel sheet must have these columns:</strong><br />
+    <code>Exchange</code> &nbsp;(NSE or BSE) &nbsp;·&nbsp;
+    <code>NSE / BSE Symbol</code> &nbsp;·&nbsp;
+    <code>Company Name</code>
+  </div>
+
+  <!-- Submit -->
+  <div class="section-label">Step 2 — Fetch prices</div>
+  <button class="btn" id="uploadBtn" disabled onclick="startUpload()">
+    📥 &nbsp;Fetch Today's Prices &amp; Download
+  </button>
+
+  <!-- Loading -->
+  <div class="loading-box" id="loadingBox">
+    <div class="spinner"></div>
+    <div class="loading-title">Fetching prices, please wait…</div>
+    <div class="loading-msg">
+      Connecting to Yahoo Finance and downloading closing prices for all your stocks.<br /><br />
+      This may take <strong>2 to 5 minutes</strong> depending on how many stocks you have.
+    </div>
+    <div class="loading-note">⏳ Please do not close this tab or refresh the page.</div>
+    <div class="progress-bar-wrap">
+      <div class="progress-bar-fill" id="progressFill"></div>
+    </div>
+  </div>
+
+  <!-- Result -->
+  <div class="result-box" id="resultBox">
+    <div class="result-header" id="resultHeader"></div>
+    <div class="result-body" id="resultBody"></div>
+  </div>
+
+  <!-- Legend -->
+  <div class="legend">
+    <div class="legend-item"><div class="dot green"></div> Price went up</div>
+    <div class="legend-item"><div class="dot red"></div> Price went down</div>
+    <div class="legend-item"><div class="dot yellow"></div> Could not fetch</div>
+  </div>
+
+  <div class="footer">Prices sourced from Yahoo Finance &nbsp;·&nbsp; Best used after 3:30 PM IST (market close)</div>
+
+</div>
+
+<script>
+  let selectedFile = null;
+  let downloadBlob = null;
+  let downloadFilename = '';
+
+  const fileInput    = document.getElementById('fileInput');
+  const dropzone     = document.getElementById('dropzone');
+  const fileSelected = document.getElementById('fileSelected');
+  const uploadBtn    = document.getElementById('uploadBtn');
+  const loadingBox   = document.getElementById('loadingBox');
+  const progressFill = document.getElementById('progressFill');
+  const resultBox    = document.getElementById('resultBox');
+  const resultHeader = document.getElementById('resultHeader');
+  const resultBody   = document.getElementById('resultBody');
+
+  fileInput.addEventListener('change', e => {
+    const f = e.target.files[0];
+    if (f) selectFile(f);
+  });
+
+  function selectFile(f) {
+    selectedFile = f;
+    fileSelected.style.display = 'block';
+    fileSelected.textContent = '✅  ' + f.name + '  (' + (f.size / 1024).toFixed(1) + ' KB)';
+    uploadBtn.disabled = false;
+    resultBox.style.display = 'none';
+  }
+
+  dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag-over'); });
+  dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag-over'));
+  dropzone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropzone.classList.remove('drag-over');
+    const f = e.dataTransfer.files[0];
+    if (f && (f.name.endsWith('.xlsx') || f.name.endsWith('.xlsm'))) {
+      selectFile(f);
+    } else {
+      alert('Please upload an .xlsx file only.');
+    }
+  });
+
+  let progressTimer;
+
+  function startFakeProgress() {
+    let pct = 5;
+    progressFill.style.width = pct + '%';
+    progressTimer = setInterval(() => {
+      const step = pct < 40 ? 2 : pct < 70 ? 1 : pct < 88 ? 0.4 : 0.05;
+      pct = Math.min(pct + step, 92);
+      progressFill.style.width = pct + '%';
+    }, 1000);
+  }
+
+  function stopProgress(success) {
+    clearInterval(progressTimer);
+    progressFill.style.width = success ? '100%' : '0%';
+  }
+
+  async function startUpload() {
+    if (!selectedFile) return;
+
+    uploadBtn.disabled = true;
+    loadingBox.style.display = 'block';
+    resultBox.style.display  = 'none';
+    startFakeProgress();
+
+    const form = new FormData();
+    form.append('file', selectedFile);
+
+    try {
+      const resp = await fetch('/upload', { method: 'POST', body: form });
+      stopProgress(resp.ok);
+
+      if (resp.ok) {
+        const blob    = await resp.blob();
+        const dDate   = resp.headers.get('X-Stats-Date')    || '';
+        const fetched = resp.headers.get('X-Stats-Fetched') || '?';
+        const failed  = resp.headers.get('X-Stats-Failed')  || '?';
+        const total   = resp.headers.get('X-Stats-Total')   || '?';
+
+        downloadBlob     = blob;
+        downloadFilename = 'stocks_eod_' + dDate.replace(/-/g, '_') + '.xlsx';
+
+        showSuccess(dDate, fetched, failed, total);
+      } else {
+        const err = await resp.json().catch(() => ({ detail: 'Unknown error occurred.' }));
+        showError(err.detail || 'Something went wrong on the server.');
+      }
+    } catch (e) {
+      stopProgress(false);
+      showError('Could not connect to the server. Make sure the app is running.');
+    }
+
+    loadingBox.style.display = 'none';
+    uploadBtn.disabled = false;
+  }
+
+  function showSuccess(dDate, fetched, failed, total) {
+    const failedNum = parseInt(failed, 10);
+    resultBox.className = 'result-box success';
+    resultBox.style.display = 'block';
+    resultHeader.innerHTML = '✅ &nbsp;Done! Prices fetched successfully.';
+    resultBody.innerHTML =
+      '<div class="stat-row"><span>Date column added</span><span class="stat-val green">' + dDate + '</span></div>' +
+      '<div class="stat-row"><span>Total stocks processed</span><span class="stat-val">' + total + '</span></div>' +
+      '<div class="stat-row"><span>Prices fetched</span><span class="stat-val green">' + fetched + '</span></div>' +
+      '<div class="stat-row"><span>Could not fetch (marked N/A)</span><span class="stat-val ' + (failedNum > 0 ? 'yellow' : 'green') + '">' + failed + '</span></div>' +
+      '<button class="btn-download" onclick="triggerDownload()">⬇ &nbsp;Download Updated Excel File</button>';
+  }
+
+  function showError(msg) {
+    resultBox.className = 'result-box error';
+    resultBox.style.display = 'block';
+    resultHeader.innerHTML = '❌ &nbsp;Something went wrong';
+    resultBody.innerHTML = '<div style="color:#9f1239; font-size:0.85rem;">' + msg + '</div>';
+  }
+
+  function triggerDownload() {
+    if (!downloadBlob) return;
+    const url = URL.createObjectURL(downloadBlob);
+    const a   = document.createElement('a');
+    a.href = url;
+    a.download = downloadFilename;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+</script>
+
+</body>
+</html>
