@@ -15,7 +15,7 @@ from config import (
     ALT_HEADERS,
 )
 from excel_utils import load_and_validate, wb_to_bytes
-from fetcher import build_ticker, fetch_current_price, fetch_price_on_date, fetch_price_range
+from fetcher import build_ticker, fetch_current_price, fetch_price_on_date, fetch_price_range, fetch_prices_on_dates
 
 
 # ── Mode 1: Append today's EOD prices ────────────────────────────────────────
@@ -285,3 +285,57 @@ def process_range(file_bytes: bytes, from_date: date, to_date: date) -> tuple[by
         "trading_days":   trading_days,
     }
     return wb_to_bytes(wb), stats
+
+# ── Mode 5: Prices for multiple individually selected dates ───────────────────
+def process_selected_dates(file_bytes: bytes, target_dates: list[date]) -> tuple[bytes, dict]:
+    """Append one column per explicitly selected date (not a continuous range)."""
+    selected = sorted(set(target_dates))
+    if not selected:
+        raise ValueError("Select at least one date.")
+
+    wb, ws, headers, sym_idx, exch_idx = load_and_validate(file_bytes)
+    day_labels = [day.strftime("%d-%b-%Y") for day in selected]
+    base_col = len(headers) + 1
+
+    existing = {str(cell.value).strip() for cell in ws[1] if cell.value is not None}
+    duplicates = [label for label in day_labels if label in existing]
+    if duplicates:
+        raise ValueError("These date columns already exist in the workbook: " + ", ".join(duplicates))
+
+    for i, label in enumerate(day_labels):
+        cell = ws.cell(row=1, column=base_col + i, value=label)
+        cell.fill = PatternFill("solid", fgColor=ALT_HEADERS[i % len(ALT_HEADERS)])
+        cell.font = HEADER_FONT
+        ws.column_dimensions[get_column_letter(base_col + i)].width = 14
+
+    hit = miss = 0
+    errors = []
+    for row in ws.iter_rows(min_row=2, max_row=ws.max_row):
+        symbol, exchange, row_num = row[sym_idx].value, row[exch_idx].value, row[0].row
+        if not symbol:
+            continue
+        ticker = build_ticker(str(symbol).strip(), str(exchange or "NSE").strip())
+        prices = fetch_prices_on_dates(ticker, selected)
+        previous_price = None
+        for i, label in enumerate(day_labels):
+            price = prices.get(label)
+            cell = ws.cell(row=row_num, column=base_col + i)
+            cell.font = PRICE_FONT
+            if price is None:
+                cell.value, cell.fill = "N/A", MISS_FILL
+                miss += 1
+                errors.append(symbol)
+            else:
+                cell.value = price
+                cell.number_format = "#,##0.00"
+                hit += 1
+                if previous_price is not None:
+                    cell.fill = GREEN_FILL if price >= previous_price else RED_FILL
+                previous_price = price
+        time.sleep(DELAY)
+
+    return wb_to_bytes(wb), {
+        "date": f"{len(selected)} selected dates", "total": hit + miss,
+        "fetched": hit, "failed": miss, "failed_symbols": errors[:10],
+        "columns": len(selected), "trading_days": day_labels,
+    }

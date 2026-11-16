@@ -58,3 +58,12 @@ def fetch_price_range(ticker: str, from_date: date, to_date: date) -> dict[str, 
     except Exception:
         pass
     return result
+
+
+def fetch_prices_on_dates(ticker: str, target_dates: list[date]) -> dict[str, Optional[float]]:
+    """Fetch closes for explicitly selected independent dates."""
+    selected = sorted(set(target_dates))
+    if not selected:
+        return {}
+    available = fetch_price_range(ticker, selected[0], selected[-1])
+    return {day.strftime("%d-%b-%Y"): available.get(day.strftime("%d-%b-%Y")) for day in selected}

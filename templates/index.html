@@ -32,6 +32,9 @@
     <button class="tab-btn t3" onclick="switchTab(3)">
       <span class="tab-icon">📆</span>Date Range
     </button>
+    <button class="tab-btn t4" onclick="switchTab(4)">
+      <span class="tab-icon">🗓️</span>Selected Dates
+    </button>
   </div>
 
   <!-- Card -->
@@ -70,6 +73,22 @@
             <div class="weekend-warn" id="singleWarn">⚠ Weekend selected — markets are closed</div>
           </div>
         </div>
+      </div>
+
+      <!-- Mode 5: multiple independent dates -->
+      <div id="selectedDatesWrap" style="display:none;">
+        <div class="label">Step 1.5 — Add individual dates (max 30)</div>
+        <div class="date-row">
+          <div class="date-group">
+            <label>Choose a date</label>
+            <input type="date" id="additionalDate" max="" />
+          </div>
+          <div class="date-group" style="display:flex; align-items:end;">
+            <button type="button" class="btn-add-date" id="addDateBtn">＋ Add date</button>
+          </div>
+        </div>
+        <div class="selected-date-list" id="selectedDateList"><span class="selected-date-empty">No dates added yet.</span></div>
+        <div class="weekend-warn" style="display:block; margin:0.5rem 0 1.1rem;">Choose non-consecutive dates independently. Weekends and future dates are not allowed.</div>
       </div>
 
       <!-- Mode 3: date range -->

@@ -1,5 +1,6 @@
 // ── State ──────────────────────────────────────────────────────────────────
-let activeMode       = 0;   // 0=EOD, 1=Live, 2=Date, 3=Range
+let activeMode       = 0;   // 0=EOD, 1=Live, 2=Date, 3=Range, 4=Selected dates
+let selectedDates    = [];
 let selectedFile     = null;
 let downloadBlob     = null;
 let downloadFilename = '';
@@ -37,6 +38,14 @@ const modeConfig = [
     stripCls:  'c3',
     loadTitle: 'Fetching range prices (this may take longer)…',
   },
+  {
+    endpoint:  '/get-selected-dates',
+    btnText:   '🗓️ &nbsp;Fetch Prices for Selected Dates',
+    btnCls:    'b4',
+    strip:     '<strong>Selected Dates</strong> — Pick multiple independent dates. Only those dates are fetched; days between them are skipped.',
+    stripCls:  'c4',
+    loadTitle: 'Fetching prices for selected dates…',
+  },
 ];
 
 // ── DOM refs ───────────────────────────────────────────────────────────────
@@ -54,6 +63,10 @@ const modeStrip      = document.getElementById('modeStrip');
 const dateSection    = document.getElementById('dateSection');
 const singleDateWrap = document.getElementById('singleDateWrap');
 const rangeDateWrap  = document.getElementById('rangeDateWrap');
+const selectedDatesWrap = document.getElementById('selectedDatesWrap');
+const additionalDate = document.getElementById('additionalDate');
+const addDateBtn = document.getElementById('addDateBtn');
+const selectedDateList = document.getElementById('selectedDateList');
 const singleDate     = document.getElementById('singleDate');
 const fromDate       = document.getElementById('fromDate');
 const toDate         = document.getElementById('toDate');
@@ -65,6 +78,7 @@ const todayStr = new Date().toISOString().split('T')[0];
 singleDate.max = todayStr;
 fromDate.max   = todayStr;
 toDate.max     = todayStr;
+additionalDate.max = todayStr;
 
 // ── Tab switching ──────────────────────────────────────────────────────────
 function switchTab(idx) {
@@ -83,6 +97,7 @@ function switchTab(idx) {
   dateSection.style.display    = idx >= 2 ? 'block' : 'none';
   singleDateWrap.style.display = idx === 2 ? 'block' : 'none';
   rangeDateWrap.style.display  = idx === 3 ? 'block' : 'none';
+  selectedDatesWrap.style.display = idx === 4 ? 'block' : 'none';
 
   step2label.textContent = idx >= 2 ? 'Step 3 — Fetch prices' : 'Step 2 — Fetch prices';
 
@@ -133,8 +148,42 @@ function validateBtn() {
   let ok = !!selectedFile;
   if (activeMode === 2) ok = ok && !!singleDate.value;
   if (activeMode === 3) ok = ok && !!fromDate.value && !!toDate.value && fromDate.value <= toDate.value;
+  if (activeMode === 4) ok = ok && selectedDates.length > 0;
   fetchBtn.disabled = !ok;
 }
+
+
+function renderSelectedDates() {
+  if (!selectedDates.length) {
+    selectedDateList.innerHTML = '<span class="selected-date-empty">No dates added yet.</span>';
+  } else {
+    selectedDateList.innerHTML = [...selectedDates].sort().map(value => {
+      const label = new Date(value + 'T00:00:00Z').toLocaleDateString('en-IN', {day:'2-digit', month:'short', year:'numeric', timeZone:'UTC'});
+      return '<span class="selected-date-chip">' + label + '<button type="button" aria-label="Remove date" data-date="' + value + '">×</button></span>';
+    }).join('');
+  }
+  selectedDateList.querySelectorAll('button[data-date]').forEach(button => {
+    button.addEventListener('click', () => {
+      selectedDates = selectedDates.filter(value => value !== button.dataset.date);
+      renderSelectedDates();
+      validateBtn();
+    });
+  });
+}
+
+addDateBtn.addEventListener('click', () => {
+  const value = additionalDate.value;
+  if (!value) return;
+  if (isWeekend(value)) { showError('That date is a weekend — markets are closed.'); return; }
+  if (value > todayStr) { showError('Future dates are not supported.'); return; }
+  if (selectedDates.includes(value)) { showError('That date has already been added.'); return; }
+  if (selectedDates.length >= 30) { showError('You can select at most 30 dates per fetch.'); return; }
+  selectedDates.push(value);
+  additionalDate.value = '';
+  resultBox.style.display = 'none';
+  renderSelectedDates();
+  validateBtn();
+});
 
 // ── Progress bar ───────────────────────────────────────────────────────────
 let progressTimer;
@@ -173,6 +222,7 @@ async function startFetch() {
   const endpoint = modeConfig[activeMode].endpoint;
   form.append('file', selectedFile);
   if (activeMode === 2) form.append('target_date', singleDate.value);
+  if (activeMode === 4) selectedDates.slice().sort().forEach(value => form.append('target_dates', value));
   if (activeMode === 3) { form.append('from_date', fromDate.value); form.append('to_date', toDate.value); }
 
   try {
@@ -191,7 +241,7 @@ async function startFetch() {
       const rangeTo     = resp.headers.get('X-Stats-To')           || '';
 
       downloadBlob     = blob;
-      const prefix     = ['eod', 'live', 'date', 'range'][activeMode];
+      const prefix     = ['eod', 'live', 'date', 'range', 'selected_dates'][activeMode];
       downloadFilename = `stocks_${prefix}_${dDate.replace(/[^a-z0-9]/gi, '_')}.xlsx`;
 
       showSuccess(dDate, fetched, failed, total, cols, tradingDays, rangeFrom, rangeTo);
@@ -322,7 +372,7 @@ function showSuccess(dDate, fetched, failed, total, cols, tradingDays, rangeFrom
 
   const calHtml = activeMode === 3
     ? buildCalendar(tradingDays, rangeFrom, rangeTo)
-    : '';
+    : (activeMode === 4 ? '<div class="cal-wrap"><div class="cal-label">Selected dates</div><div class="selected-date-list">' + tradingDays.split(',').map(day => '<span class="selected-date-chip">' + day + '</span>').join('') + '</div></div>' : '');
 
   resultBody.innerHTML =
     colRow +
