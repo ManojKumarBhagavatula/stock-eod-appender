@@ -10,7 +10,7 @@ from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, StreamingResponse
 from jinja2 import Environment, FileSystemLoader
 
-from processors import process_current, process_eod, process_range, process_single_date
+from processors import process_current, process_eod, process_range, process_single_date, process_selected_dates
 
 router = APIRouter()
 env    = Environment(loader=FileSystemLoader("templates"))
@@ -134,3 +134,32 @@ async def upload_range(
     except Exception as e:
         raise HTTPException(500, f"Processing error: {e}")
     return _stream_response(result_bytes, stats, "range")
+
+@router.post("/get-selected-dates")
+async def upload_selected_dates(file: UploadFile = File(...), target_dates: list[str] = Form(...)):
+    """Mode 5 — Fetch closing prices for multiple non-contiguous selected dates."""
+    _validate_upload(file)
+    parsed_dates = set()
+    for raw_date in target_dates:
+        try:
+            selected = datetime.strptime(raw_date, "%Y-%m-%d").date()
+        except ValueError:
+            raise HTTPException(400, f"Invalid date '{raw_date}'. Expected YYYY-MM-DD.")
+        if selected.weekday() >= 5:
+            raise HTTPException(422, f"{selected.strftime('%d-%b-%Y')} is a weekend. Markets are closed.")
+        if selected > date.today():
+            raise HTTPException(422, "Future dates are not supported.")
+        parsed_dates.add(selected)
+    if not parsed_dates:
+        raise HTTPException(422, "Select at least one date.")
+    if len(parsed_dates) > 30:
+        raise HTTPException(422, "Select at most 30 dates per fetch.")
+
+    contents = await file.read()
+    try:
+        result_bytes, stats = await asyncio.to_thread(process_selected_dates, contents, sorted(parsed_dates))
+    except ValueError as e:
+        raise HTTPException(422, str(e))
+    except Exception as e:
+        raise HTTPException(500, f"Processing error: {e}")
+    return _stream_response(result_bytes, stats, "selected_dates")
